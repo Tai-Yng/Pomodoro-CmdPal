@@ -21,14 +21,30 @@ internal static class ToastScheduler
     {
         Clear();
 
-        var xml = ToastNotificationManager.GetTemplateContent(ToastTemplateType.ToastText02);
-        var texts = xml.GetElementsByTagName("text");
-        texts[0].AppendChild(xml.CreateTextNode(
-            phase == PomodoroPhase.Focus ? "Focus session complete" : "Break is over"));
-        texts[1].AppendChild(xml.CreateTextNode(
-            phase == PomodoroPhase.Focus ? "Take a 5 minute break." : "Start the next focus session."));
+        // Focus end = alarm scenario (persistent + looping alarm sound until dismissed);
+        // break end = reminder scenario (persistent, silent). Both carry a system-handled
+        // dismiss button so no activation code is needed.
+        var isFocus = phase == PomodoroPhase.Focus;
+        var scenario = isFocus ? "alarm" : "reminder";
+        var audio = isFocus ? "<audio loop=\"true\" src=\"ms-winsoundevent:Notification.Looping.Alarm\"/>" : string.Empty;
+        var title = isFocus ? "Focus session complete" : "Break is over";
+        var body = isFocus ? "Take a 5 minute break." : "Start the next focus session.";
 
-        var toast = new ScheduledToastNotification(xml, deliverAt);
+        var xml =
+            $"<toast scenario=\"{scenario}\">" +
+            "<visual><binding template=\"ToastGeneric\">" +
+            $"<text>{title}</text>" +
+            $"<text>{body}</text>" +
+            "</binding></visual>" +
+            audio +
+            "<actions>" +
+            "<action activationType=\"system\" arguments=\"dismiss\" content=\"Dismiss\"/>" +
+            "</actions>" +
+            "</toast>";
+
+        var doc = new XmlDocument();
+        doc.LoadXml(xml);
+        var toast = new ScheduledToastNotification(doc, deliverAt);
         Notifier().AddToSchedule(toast);
     }
 
