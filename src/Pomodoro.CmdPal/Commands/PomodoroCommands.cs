@@ -54,14 +54,14 @@ public sealed partial class PomodoroActionCommand : InvokableCommand
             {
                 var started = PomodoroLogic.Start(PomodoroPhase.Focus, now, _settings.FocusMs, current.Cycle);
                 _store.Save(started);
-                ToastScheduler.ScheduleForPhase(PomodoroPhase.Focus, now.AddMilliseconds(_settings.FocusMs));
+                ToastScheduler.ScheduleForPhase(PomodoroPhase.Focus, now.AddMilliseconds(_settings.FocusMs), _settings.AlarmChimes);
                 break;
             }
             case PomodoroAction.StartBreak:
             {
                 var started = PomodoroLogic.Start(PomodoroPhase.Break, now, _settings.BreakMs, current.Cycle);
                 _store.Save(started);
-                ToastScheduler.ScheduleForPhase(PomodoroPhase.Break, now.AddMilliseconds(_settings.BreakMs));
+                ToastScheduler.ScheduleForPhase(PomodoroPhase.Break, now.AddMilliseconds(_settings.BreakMs), _settings.AlarmChimes);
                 break;
             }
             case PomodoroAction.Pause:
@@ -76,7 +76,7 @@ public sealed partial class PomodoroActionCommand : InvokableCommand
                 var resumed = PomodoroLogic.Resume(current, now);
                 _store.Save(resumed);
                 var remaining = PomodoroLogic.RemainingMs(resumed, now);
-                ToastScheduler.ScheduleForPhase(resumed.Phase, now.AddMilliseconds(remaining));
+                ToastScheduler.ScheduleForPhase(resumed.Phase, now.AddMilliseconds(remaining), _settings.AlarmChimes);
                 break;
             }
             case PomodoroAction.Cancel:

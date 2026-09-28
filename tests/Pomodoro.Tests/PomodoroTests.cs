@@ -122,3 +122,32 @@ public sealed class PomodoroTests : IDisposable
         Assert.Equal(PomodoroState.Idle, store.Load());
     }
 }
+
+public sealed class AlarmWavTests
+{
+    [Fact]
+    public void Generate_ProducesValidRiffWav_ScaledByChimeCount()
+    {
+        var wav = AlarmWav.Generate(3);
+
+        Assert.True(wav.Length > 44);
+        Assert.Equal((byte)'R', wav[0]);
+        Assert.Equal((byte)'I', wav[1]);
+        Assert.Equal((byte)'F', wav[2]);
+        Assert.Equal((byte)'F', wav[3]);
+        var dataSize = BitConverter.ToUInt32(wav, 40);
+        Assert.Equal((long)(wav.Length - 44), (long)dataSize);
+
+        var one = AlarmWav.Generate(1);
+        var five = AlarmWav.Generate(5);
+        Assert.True(one.Length < wav.Length && wav.Length < five.Length);
+    }
+
+    [Fact]
+    public void Generate_ClampsOutOfRangeChimes()
+    {
+        var clamped = AlarmWav.Generate(99);
+        var atMax = AlarmWav.Generate(5);
+        Assert.Equal(atMax.Length, clamped.Length);
+    }
+}

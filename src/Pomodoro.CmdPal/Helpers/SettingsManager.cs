@@ -26,6 +26,12 @@ public sealed partial class SettingsManager : JsonSettingsManager
         "Duration of one break (1-180)",
         "5");
 
+    private readonly TextSetting _alarmChimes = new(
+        Namespaced("AlarmChimes"),
+        "Alarm chimes",
+        "How many times the completion alarm rings (1-5); the toast itself stays on screen",
+        "3");
+
     internal static string SettingsJsonPath()
     {
         var directory = Utilities.BaseSettingsPath("Pomodoro.CmdPal");
@@ -40,6 +46,7 @@ public sealed partial class SettingsManager : JsonSettingsManager
 
         Settings.Add(_focusMinutes);
         Settings.Add(_breakMinutes);
+        Settings.Add(_alarmChimes);
 
         // Load settings from file upon initialization
         LoadSettings();
@@ -50,6 +57,8 @@ public sealed partial class SettingsManager : JsonSettingsManager
     public long FocusMs => ParseMinutes(_focusMinutes.Value, 25);
 
     public long BreakMs => ParseMinutes(_breakMinutes.Value, 5);
+
+    public int AlarmChimes => int.TryParse(_alarmChimes.Value, out var n) && n is >= 1 and <= 5 ? n : 3;
 
     private static long ParseMinutes(string? value, int fallback) =>
         long.TryParse(value, out var minutes) && minutes is > 0 and <= 180
