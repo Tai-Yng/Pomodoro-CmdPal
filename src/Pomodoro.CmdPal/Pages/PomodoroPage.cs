@@ -23,7 +23,7 @@ internal sealed partial class PomodoroPage : DynamicListPage
 
     public PomodoroPage(PomodoroStore store, SettingsManager settings)
     {
-        Icon = IconHelpers.FromRelativePath("Assets\\StoreLogo.png");
+        Icon = IconHelpers.FromRelativePath("Assets\\icon.png");
         Title = "Pomodoro";
         Name = "Open";
 

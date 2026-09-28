@@ -17,7 +17,7 @@ public partial class PomodoroCommandsProvider : CommandProvider
     public PomodoroCommandsProvider()
     {
         DisplayName = "Pomodoro";
-        Icon = IconHelpers.FromRelativePath("Assets\\StoreLogo.png");
+        Icon = IconHelpers.FromRelativePath("Assets\\icon.png");
 
         var store = new PomodoroStore(Utilities.BaseSettingsPath("Pomodoro.CmdPal"));
         _commands =
