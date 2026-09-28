@@ -1,0 +1,96 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Test
+        run: dotnet test tests/Pomodoro.Tests/Pomodoro.Tests.csproj
+
+      - name: Detect version
+        id: version
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}" -replace '^v', ''
+          "VERSION=$tag" >> $env:GITHUB_OUTPUT
+
+      # The MSIX tooling picks AppxPackageVersion up for the generated identity.
+      - name: Build sideload MSIX (unsigned)
+        shell: pwsh
+        run: >
+          dotnet build src/Pomodoro.CmdPal/Pomodoro.CmdPal.csproj
+          -p:Platform=x64 -p:Configuration=Release -p:RuntimeIdentifier=win-x64
+          -p:UapAppxPackageBuildMode=SideloadOnly -p:AppxPackageSigningEnabled=false
+          -p:GenerateAppxPackageOnBuild=true -p:AppxPackageDir="outpkg/"
+          "-p:AppxPackageVersion=${{ steps.version.outputs.VERSION }}.0"
+          "-p:AppxPackageIdentityName=TaiYng.Pomodoro.CmdPal"
+          "-p:AppxPackagePublisher=CN=Tai-Yng"
+
+      # Stable self-signed cert provided via repo secrets:
+      #   POMODORO_PFX_B64  = base64 of the PFX (single cert, CN=Tai-Yng)
+      #   POMODORO_PFX_PASS = its password
+      # Without the secret the release ships an unsigned msix and users sign it themselves.
+      - name: Sign MSIX and export public cert
+        shell: pwsh
+        env:
+          PFX_B64: ${{ secrets.POMODORO_PFX_B64 }}
+          PFX_PASS: ${{ secrets.POMODORO_PFX_PASS }}
+        run: |
+          # AppxPackageDir resolves relative to the project dir, so search the whole repo.
+          $msix = (Get-ChildItem . -Recurse -Filter *.msix |
+            Where-Object { $_.FullName -notmatch '\\staging\\' } |
+            Sort-Object LastWriteTime -Descending | Select-Object -First 1).FullName
+          if (-not $msix) { Write-Error "no msix produced by the build"; exit 1 }
+          Write-Output "msix: $msix"
+          if ([string]::IsNullOrEmpty($env:PFX_B64)) {
+            Write-Output "POMODORO_PFX_B64 not set; releasing unsigned msix."
+            exit 0
+          }
+          [IO.File]::WriteAllBytes("promptrun-sign.pfx", [Convert]::FromBase64String($env:PFX_B64))
+          $signtool = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin" -Recurse -Filter signtool.exe |
+            Where-Object { $_.FullName -match 'x64' } | Select-Object -First 1 -ExpandProperty FullName
+          & $signtool sign /fd SHA256 /f promptrun-sign.pfx /p "$env:PFX_PASS" $msix
+          Write-Output "signature: $((Get-AuthenticodeSignature $msix).Status)"
+          $cert = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new(
+            "promptrun-sign.pfx", $env:PFX_PASS)
+          $b64 = [Convert]::ToBase64String($cert.Export([System.Security.Cryptography.X509Certificates.X509ContentType]::Cert))
+          $pem = ("-----BEGIN CERTIFICATE-----`n" + ($b64 -replace '(.{64})', "`$1`n") + "-----END CERTIFICATE-----`n")
+          Out-File -Encoding ascii -InputObject $pem -FilePath (Join-Path (Split-Path $msix) promptrun-sign.cer)
+
+      - name: Collect artifacts
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force staging | Out-Null
+          $msix = (Get-ChildItem . -Recurse -Filter *.msix |
+            Where-Object { $_.FullName -notmatch '\\staging\\' } |
+            Sort-Object LastWriteTime -Descending | Select-Object -First 1).FullName
+          $name = "Pomodoro.CmdPal_${{ steps.version.outputs.VERSION }}_x64.msix"
+          Copy-Item $msix "staging/$name"
+          $cer = Get-ChildItem . -Recurse -Filter promptrun-sign.cer | Select-Object -First 1
+          if ($cer) { Copy-Item $cer.FullName staging/ }
+          $files = Get-ChildItem staging | Select-Object -ExpandProperty FullName
+          ($files | ForEach-Object { "{0}  {1}" -f (Get-FileHash $_ -Algorithm SHA256).Hash, (Split-Path $_ -Leaf) }) |
+            Out-File -Encoding ascii staging/SHA256SUMS.txt
+          Get-ChildItem staging | Select-Object Name
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: staging/*
+          generate_release_notes: true
