@@ -19,9 +19,13 @@ Same trust flow as any self-published CmdPal extension:
 ## Usage
 
 - Open the Pomodoro command → **Start focus** — when the time is up the system pops "Focus session complete"
-- While running: the status row ticks every second; **Pause** freezes the remaining time (and cancels the scheduled notification), **Resume** re-schedules it
+- While running: the status row shows remaining + end time (the list only re-renders on your input, so your selection never jumps); **Pause** freezes the remaining time (and cancels the scheduled notification), **Resume** re-schedules it
 - **Start break** keeps the cycle counter; **Cancel** clears everything
 - Settings (context menu on the Pomodoro entry): focus length, break length (1–180 minutes)
+
+## Troubleshooting
+
+- **Duplicate entry / broken icon after upgrading the extension**: the running CmdPal host kept a stale registration. Restart PowerToys (or run the "Reload" command inside Command Palette) — it collapses to a single entry with a proper icon.
 
 ## Development
 
