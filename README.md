@@ -25,7 +25,7 @@ Same trust flow as any self-published CmdPal extension:
 
 ## Troubleshooting
 
-- **Duplicate entry / broken icon after upgrading the extension**: the running CmdPal host kept a stale registration. Restart PowerToys (or run the "Reload" command inside Command Palette) — it collapses to a single entry with a proper icon.
+- **Duplicate entries / broken icons after upgrading the extension**: each in-place upgrade can leave a stale top-level registration in the running CmdPal host (one per old version). Fully restart PowerToys — kill `Microsoft.CmdPal.UI.exe` too (or run "Reload" in Command Palette) — and they collapse to the current version only.
 
 ## Development
 
