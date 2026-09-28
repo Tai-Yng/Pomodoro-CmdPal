@@ -10,17 +10,16 @@ using Pomodoro.Core;
 namespace Pomodoro.CmdPal;
 
 /// <summary>
-/// The single top-level page. Actions depend on the persisted state; while a phase runs
-/// the list ticks every second (safe — the page is only visible while the host keeps us alive).
-/// Correctness never depends on this process: timing is wall-clock + OS scheduled toast.
+/// The single top-level page. Actions depend on the persisted state. The list does NOT
+/// auto-refresh: periodic RaiseItemsChanged would rebuild the list and yank the user's
+/// selection back to the top every second. Timing is wall-clock + OS scheduled toast, so
+/// correctness never depends on rendering; the row shows remaining time + absolute end
+/// time and refreshes on user input or command execution.
 /// </summary>
 internal sealed partial class PomodoroPage : DynamicListPage
 {
-    private const int TickMs = 1000;
-
     private readonly PomodoroStore _store;
     private readonly SettingsManager _settings;
-    private System.Threading.Timer? _ticker;
 
     public PomodoroPage(PomodoroStore store, SettingsManager settings)
     {
@@ -39,7 +38,6 @@ internal sealed partial class PomodoroPage : DynamicListPage
     {
         var now = DateTimeOffset.UtcNow;
         var state = _store.Load();
-        ManageTicker(state);
 
         var items = new List<IListItem>();
         Func<PomodoroAction, PomodoroActionCommand> action = kind =>
@@ -68,13 +66,18 @@ internal sealed partial class PomodoroPage : DynamicListPage
         var remaining = PomodoroLogic.RemainingMs(state, now);
         var remainingText = PomodoroLogic.FormatRemaining(remaining);
         var expired = PomodoroLogic.IsExpired(state, now);
+        var endsAt = (state.Paused
+            ? now.AddMilliseconds(remaining)
+            : DateTimeOffset.FromUnixTimeMilliseconds(state.StartedAtUnixMs + state.DurationMs)).LocalDateTime;
         var phaseText = (state.Phase == PomodoroPhase.Focus ? "Focus" : "Break")
             + (state.Paused ? " (paused)" : expired ? " — finished" : "");
 
         items.Add(new ListItem(new NoOpCommand())
         {
-            Title = $"⏳ {phaseText} — {remainingText}",
-            Subtitle = $"cycle {state.Cycle} · {state.DurationMs / 60000:0} min sessions",
+            Title = $"⏳ {phaseText} — {remainingText} left",
+            Subtitle = expired
+                ? $"cycle {state.Cycle} · the scheduled notification has fired"
+                : $"cycle {state.Cycle} · ends at {endsAt:HH:mm} · type any character to refresh",
         });
 
         if (state.Paused)
@@ -111,19 +114,5 @@ internal sealed partial class PomodoroPage : DynamicListPage
         });
 
         return items.ToArray();
-    }
-
-    private void ManageTicker(PomodoroState state)
-    {
-        var shouldTick = state.Phase != PomodoroPhase.Idle && !state.Paused;
-        if (shouldTick && _ticker is null)
-        {
-            _ticker = new System.Threading.Timer(_ => RaiseItemsChanged(0), null, TickMs, TickMs);
-        }
-        else if (!shouldTick && _ticker is not null)
-        {
-            _ticker.Dispose();
-            _ticker = null;
-        }
     }
 }
